@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<title>Login - Lica Admin</title>
+	<link rel="stylesheet" th:href="@{/css/admin.css}"/>
+</head>
+<body>
+	<div class="login-wrapper">
+		<div class="login-card">
+			<h1>Lica</h1>
+			<p class="subtitle">Admin Settings</p>
+
+			<div th:if="${param.error}" class="alert alert-error">
+				아이디 또는 비밀번호가 올바르지 않습니다.
+			</div>
+			<div th:if="${param.logout}" class="alert alert-info">
+				로그아웃되었습니다.
+			</div>
+
+			<form th:action="@{/login}" method="post">
+				<div class="form-group">
+					<label for="username">Username</label>
+					<input type="text" id="username" name="username" autofocus="autofocus" required="required"/>
+				</div>
+				<div class="form-group">
+					<label for="password">Password</label>
+					<input type="password" id="password" name="password" required="required"/>
+				</div>
+				<button type="submit" class="btn-primary">Login</button>
+			</form>
+		</div>
+	</div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<title>Settings - Lica Admin</title>
+	<link rel="stylesheet" th:href="@{/css/admin.css}"/>
+</head>
+<body>
+	<nav class="navbar">
+		<h1>Lica Settings</h1>
+		<form th:action="@{/admin/logout}" method="post">
+			<button type="submit" class="btn-logout">Logout</button>
+		</form>
+	</nav>
+
+	<form th:action="@{/admin/settings}" method="post">
+		<div class="content">
+			<div th:if="${message}" class="alert alert-success" th:text="${message}"></div>
+			<div th:if="${error}" class="alert alert-error" th:text="${error}"></div>
+
+			<div th:each="section : ${sections}" class="section-card">
+				<div class="section-header" th:text="${section.name}">Section</div>
+				<div th:each="prop : ${section.properties}" class="prop-row">
+					<div class="prop-key" th:text="${prop.key}">key</div>
+					<div class="prop-value">
+						<select th:if="${prop.value == 'true' or prop.value == 'false'}"
+								th:name="${prop.key}">
+							<option value="true" th:selected="${prop.value == 'true'}">true</option>
+							<option value="false" th:selected="${prop.value == 'false'}">false</option>
+						</select>
+						<input th:unless="${prop.value == 'true' or prop.value == 'false'}"
+							   type="text"
+							   th:name="${prop.key}"
+							   th:value="${prop.value}"/>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="save-bar">
+			<button type="submit">Save</button>
+		</div>
+	</form>
+</body>
+</html>
