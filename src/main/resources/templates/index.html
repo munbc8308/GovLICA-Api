@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>GovLICA - API Explorer</title>
+    <link rel="stylesheet" th:href="@{/css/govlica.css}"/>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="/" class="nav-brand">GovLICA</a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+    </div>
+</nav>
+
+<section class="hero">
+    <h2>Public Data API Explorer</h2>
+    <p>data.go.kr REST API real-time search</p>
+    <form th:action="@{/}" method="get" class="search-box">
+        <input type="hidden" name="source" th:value="${source ?: 'portal'}"/>
+        <input type="text" name="keyword" th:value="${request.keyword}"
+               placeholder="Search public data REST APIs..."/>
+        <button type="submit">Search</button>
+    </form>
+</section>
+
+<div class="filters">
+    <form th:action="@{/}" method="get" class="filter-bar">
+        <input type="hidden" name="keyword" th:value="${request.keyword}"/>
+        <input type="hidden" name="source" th:value="${source ?: 'portal'}"/>
+
+        <label>Per Page</label>
+        <select name="size" onchange="this.form.submit()">
+            <option value="10" th:selected="${request.size == 10}">10</option>
+            <option value="20" th:selected="${request.size == 20}">20</option>
+            <option value="30" th:selected="${request.size == 30}">30</option>
+        </select>
+
+        <label>Source</label>
+        <select name="source" onchange="this.form.submit()">
+            <option value="portal" th:selected="${source == 'portal' or source == null}">data.go.kr (Live)</option>
+            <option value="local" th:selected="${source == 'local'}">Local DB (Synced)</option>
+        </select>
+
+        <span class="filter-count" th:if="${results != null}">
+            Total <strong th:text="${results.totalElements}">0</strong>
+        </span>
+    </form>
+</div>
+
+<main class="main">
+
+    <!-- Sync Banner (local mode, no data) -->
+    <div class="sync-banner" th:if="${source == 'local' && localCount == 0}">
+        <p>No local data yet. Click Sync to fetch from data.go.kr and save locally.</p>
+        <button class="btn btn-primary" onclick="syncCatalog()">Sync Now</button>
+    </div>
+
+    <!-- Results Grid -->
+    <div class="api-grid" th:if="${results != null && results.totalElements > 0}">
+        <a class="api-card" th:each="api : ${results.content}" th:href="@{'/explore/' + ${api.uddiSeq}}">
+            <div class="api-card-header">
+                <div class="api-card-icon">API</div>
+                <div class="api-card-title" th:text="${api.apiName}">API Name</div>
+            </div>
+            <div class="api-card-org" th:if="${api.providerOrg != null}" th:text="${api.providerOrg}">Organization</div>
+            <div class="api-card-desc" th:if="${api.description != null}" th:text="${api.shortDescription()}">Description...</div>
+            <div class="api-card-tags">
+                <span class="tag tag-rest">REST</span>
+                <span class="tag tag-json" th:if="${api.dataFormat != null}" th:text="${api.dataFormat}">JSON</span>
+                <span class="tag tag-category" th:if="${api.category != null}" th:text="${api.category}">Category</span>
+            </div>
+        </a>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" th:if="${results != null && results.totalElements == 0}">
+        <div class="empty-state-icon">?</div>
+        <h3>No results found</h3>
+        <p>Try adjusting your search keyword or filters.</p>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" th:if="${results != null && results.totalPages > 1}">
+        <a th:href="@{/(keyword=${request.keyword}, category=${request.category}, size=${request.size}, source=${source}, page=${results.number - 1})}"
+           th:classappend="${results.number == 0} ? 'disabled'">&laquo;</a>
+
+        <th:block th:with="start=${results.number > 2 ? results.number - 2 : 0},
+                           end=${(start + 5) > results.totalPages ? results.totalPages : start + 5}">
+            <th:block th:each="i : ${#numbers.sequence(start, end - 1)}">
+                <a th:href="@{/(keyword=${request.keyword}, category=${request.category}, size=${request.size}, source=${source}, page=${i})}"
+                   th:text="${i + 1}" th:classappend="${i == results.number} ? 'active'">1</a>
+            </th:block>
+        </th:block>
+
+        <a th:href="@{/(keyword=${request.keyword}, category=${request.category}, size=${request.size}, source=${source}, page=${results.number + 1})}"
+           th:classappend="${results.number + 1 >= results.totalPages} ? 'disabled'">&raquo;</a>
+    </div>
+</main>
+
+<script th:src="@{/js/auth.js}"></script>
+<script>
+function syncCatalog() {
+    if (!confirm('Sync REST API catalog from data.go.kr? This may take a moment.')) return;
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    fetch('/api/catalog/sync', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            alert('Sync complete! New: ' + data.newApis + ', Updated: ' + data.updatedApis + ' (Portal total: ' + data.portalTotalCount + ')');
+            location.reload();
+        })
+        .catch(err => {
+            alert('Sync failed: ' + err.message);
+            btn.disabled = false;
+            btn.textContent = 'Sync Now';
+        });
+}
+</script>
+
+</body>
+</html>

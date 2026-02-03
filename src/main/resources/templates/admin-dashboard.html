@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Dashboard - Lica Admin</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}"/>
+</head>
+<body>
+
+<nav class="navbar">
+    <h1>Lica Admin</h1>
+    <div style="display:flex; align-items:center; gap:12px;">
+        <a href="/admin/dashboard" style="color:rgba(255,255,255,0.85); font-size:14px; text-decoration:none;">Dashboard</a>
+        <a href="/admin/settings" style="color:rgba(255,255,255,0.85); font-size:14px; text-decoration:none;">Settings</a>
+        <form th:action="@{/admin/logout}" method="post" style="margin:0;">
+            <button type="submit" class="btn-logout">Logout</button>
+        </form>
+    </div>
+</nav>
+
+<div class="content">
+    <h2 style="font-size:20px; margin-bottom:20px;">Dashboard</h2>
+
+    <div th:if="${message}" class="alert alert-success" th:text="${message}"></div>
+    <div th:if="${error}" class="alert alert-error" th:text="${error}"></div>
+
+    <!-- Stats Cards -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
+        <div class="section-card" style="padding:20px; text-align:center;">
+            <div style="font-size:32px; font-weight:700; color:var(--primary);" th:text="${stats['totalUsers']}">0</div>
+            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Total Users</div>
+        </div>
+        <div class="section-card" style="padding:20px; text-align:center;">
+            <div style="font-size:32px; font-weight:700; color:var(--primary);" th:text="${stats['restCatalogs']}">0</div>
+            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">REST APIs (Local)</div>
+        </div>
+        <div class="section-card" style="padding:20px; text-align:center;">
+            <div style="font-size:32px; font-weight:700; color:var(--success);" th:text="${stats['testsToday']}">0</div>
+            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Tests Today</div>
+        </div>
+        <div class="section-card" style="padding:20px; text-align:center;">
+            <div style="font-size:32px; font-weight:700; color:var(--text-muted);" th:text="${stats['testsThisWeek']}">0</div>
+            <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Tests This Week</div>
+        </div>
+    </div>
+
+    <!-- Sync Section -->
+    <div class="section-card">
+        <div class="section-header">Catalog Sync</div>
+        <div style="padding:20px; display:flex; align-items:center; justify-content:space-between;">
+            <div>
+                <div style="font-size:14px;">Local DB에 저장된 REST API: <strong th:text="${stats['restCatalogs']}">0</strong>개</div>
+                <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">data.go.kr에서 REST API 카탈로그를 동기화합니다.</div>
+            </div>
+            <form th:action="@{/admin/sync}" method="post" style="margin:0;">
+                <button type="submit" style="padding:10px 24px; background:var(--primary); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:500; cursor:pointer;">
+                    Sync Now
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="section-card">
+        <div class="section-header">Quick Links</div>
+        <div style="padding:16px 20px; display:flex; gap:12px; flex-wrap:wrap;">
+            <a href="/" style="padding:8px 16px; background:var(--bg); border-radius:8px; font-size:14px; color:var(--text); text-decoration:none;">API Explorer</a>
+            <a href="/admin/settings" style="padding:8px 16px; background:var(--bg); border-radius:8px; font-size:14px; color:var(--text); text-decoration:none;">Settings</a>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

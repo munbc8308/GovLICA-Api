@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="${detail.apiName} + ' - GovLICA'">API Detail</title>
+    <link rel="stylesheet" th:href="@{/css/govlica.css}"/>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="/" class="nav-brand">GovLICA</a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+    </div>
+</nav>
+
+<main class="main" style="margin-top: 24px;">
+
+    <!-- Header -->
+    <div class="detail-header">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+            <a href="/" class="btn btn-outline btn-sm">&larr; List</a>
+            <a th:href="@{'/explore/' + ${detail.uddiSeq} + '?refresh=true'}" class="btn btn-outline btn-sm" title="Refresh from data.go.kr">Refresh</a>
+        </div>
+        <h2 th:text="${detail.apiName}">API Name</h2>
+        <div class="detail-meta">
+            <span th:if="${detail.providerOrg}">Provider: <strong th:text="${detail.providerOrg}">Org</strong></span>
+            <span th:if="${detail.dataFormat}">Format: <strong th:text="${detail.dataFormat}">JSON</strong></span>
+            <span>Type: <strong th:text="${detail.serviceType} ?: 'REST'">REST</strong></span>
+            <span th:if="${detail.category}">Category: <strong th:text="${detail.category}">Cat</strong></span>
+        </div>
+        <p th:if="${detail.description}" th:text="${detail.description}"
+           style="font-size:14px; color:var(--text-muted); margin-top:8px; line-height:1.6;"></p>
+        <div class="detail-url" th:if="${detail.endpointUrl}">
+            <strong>Base URL:</strong> <span th:text="${detail.endpointUrl}"></span>
+        </div>
+        <div style="margin-top:16px; display:flex; gap:10px; align-items:center;">
+            <a th:href="@{'/console/' + ${detail.uddiSeq}}" class="btn btn-success">Test Console</a>
+            <a th:href="${'https://www.data.go.kr/data/' + detail.uddiSeq + '/openapi.do'}"
+               target="_blank" class="btn btn-outline">data.go.kr</a>
+            <button class="btn btn-outline btn-fav" id="favBtn" onclick="toggleFavorite()"
+                    th:attr="data-catalog-id=${detail.id}" style="display:none;">
+                <span id="favIcon">&#9734;</span> Favorite
+            </button>
+        </div>
+    </div>
+
+    <!-- API Operations List -->
+    <div class="swagger-section">
+        <h3 class="swagger-section-title">
+            API 목록
+            <span th:text="'(' + ${detail.operations.size()} + ')'" style="color:var(--text-muted); font-weight:400;"></span>
+        </h3>
+
+        <div th:each="op, iter : ${detail.operations}" class="swagger-operation">
+            <!-- Operation Summary Bar -->
+            <div class="swagger-op-bar" th:attr="onclick='toggleOp(' + ${iter.index} + ')'">
+                <span class="method-badge"
+                      th:classappend="'method-' + ${op.httpMethod?.toLowerCase() ?: 'get'}"
+                      th:text="${op.httpMethod ?: 'GET'}">GET</span>
+                <span class="swagger-op-url" th:text="${op.endpointUrl ?: detail.endpointUrl ?: '-'}">endpoint</span>
+                <span class="swagger-op-summary" th:text="${op.operationName}">Operation Name</span>
+                <span class="swagger-toggle" th:id="'icon-' + ${iter.index}">&#9660;</span>
+            </div>
+
+            <!-- Operation Detail (Collapsible) -->
+            <div class="swagger-op-body" th:id="'op-body-' + ${iter.index}">
+
+                <!-- Request Parameters -->
+                <div th:if="${!op.requestParams.isEmpty()}" class="swagger-param-section">
+                    <h4 class="swagger-param-title">Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                        <tr>
+                            <th style="width:22%;">Name</th>
+                            <th style="width:12%;">Type</th>
+                            <th style="width:8%;">Required</th>
+                            <th>Description</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="p : ${op.requestParams}">
+                            <td class="param-name">
+                                <span th:text="${p.paramName}">name</span>
+                            </td>
+                            <td style="color:var(--text-muted); font-size:12px;" th:text="${p.paramType ?: 'string'}">string</td>
+                            <td>
+                                <span th:if="${p.required}" class="required-badge">required</span>
+                                <span th:unless="${p.required}" style="color:var(--text-light); font-size:12px;">optional</span>
+                            </td>
+                            <td style="font-size:13px;">
+                                <span th:text="${p.description}">desc</span>
+                                <span th:if="${p.defaultValue != null && p.defaultValue != '-'}"
+                                      class="default-value-badge"
+                                      th:text="'default: ' + ${p.defaultValue}"></span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Response Fields -->
+                <div th:if="${!op.responseFields.isEmpty()}" class="swagger-param-section">
+                    <h4 class="swagger-param-title">Response Fields</h4>
+                    <table class="param-table">
+                        <thead>
+                        <tr>
+                            <th style="width:22%;">Name</th>
+                            <th style="width:12%;">Type</th>
+                            <th>Description</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="p : ${op.responseFields}">
+                            <td class="param-name" th:text="${p.paramName}">name</td>
+                            <td style="color:var(--text-muted); font-size:12px;" th:text="${p.paramType ?: 'string'}">string</td>
+                            <td th:text="${p.description}" style="font-size:13px;">desc</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty state -->
+                <div th:if="${op.requestParams.isEmpty() && op.responseFields.isEmpty()}"
+                     style="text-align:center; padding:24px; color:var(--text-muted); font-size:14px;">
+                    Parameter details could not be parsed from data.go.kr.
+                    <a th:href="${'https://www.data.go.kr/data/' + detail.uddiSeq + '/openapi.do'}"
+                       target="_blank">View on portal</a> or
+                    <a th:href="@{'/explore/' + ${detail.uddiSeq} + '?refresh=true'}">try refresh</a>.
+                </div>
+
+                <!-- Test Button -->
+                <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border-light);">
+                    <a th:href="@{'/console/' + ${detail.uddiSeq}}" class="btn btn-success btn-sm">
+                        Try it out
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- No operations -->
+        <div th:if="${detail.operations.isEmpty()}" class="empty-state" style="padding:40px;">
+            <h3>No operations found</h3>
+            <p>Try <a th:href="@{'/explore/' + ${detail.uddiSeq} + '?refresh=true'}">refreshing</a> from data.go.kr.</p>
+        </div>
+    </div>
+
+</main>
+
+<script th:src="@{/js/auth.js}"></script>
+<script>
+function toggleOp(idx) {
+    const body = document.getElementById('op-body-' + idx);
+    const icon = document.getElementById('icon-' + idx);
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        icon.innerHTML = '&#9660;';
+    } else {
+        body.style.display = 'none';
+        icon.innerHTML = '&#9654;';
+    }
+}
+
+// ===== Favorites =====
+let isFavorite = false;
+const catalogId = document.getElementById('favBtn')?.dataset.catalogId;
+
+function initFavorite() {
+    if (!Auth.isLoggedIn() || !catalogId) return;
+    document.getElementById('favBtn').style.display = 'inline-flex';
+    Auth.fetch('/api/user/favorites/check/' + catalogId)
+        .then(r => r.json())
+        .then(data => {
+            isFavorite = data.favorite;
+            updateFavBtn();
+        })
+        .catch(() => {});
+}
+
+function updateFavBtn() {
+    const icon = document.getElementById('favIcon');
+    const btn = document.getElementById('favBtn');
+    if (isFavorite) {
+        icon.innerHTML = '&#9733;';
+        btn.classList.add('btn-fav-active');
+    } else {
+        icon.innerHTML = '&#9734;';
+        btn.classList.remove('btn-fav-active');
+    }
+}
+
+function toggleFavorite() {
+    if (!Auth.isLoggedIn()) {
+        location.href = '/user/login?redirect=' + location.pathname;
+        return;
+    }
+    if (isFavorite) {
+        Auth.fetch('/api/user/favorites/' + catalogId, { method: 'DELETE' })
+            .then(() => { isFavorite = false; updateFavBtn(); });
+    } else {
+        Auth.fetch('/api/user/favorites/' + catalogId, { method: 'POST' })
+            .then(() => { isFavorite = true; updateFavBtn(); });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initFavorite);
+</script>
+
+</body>
+</html>

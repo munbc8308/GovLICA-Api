@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="'Test Console - ' + ${detail.apiName}">Test Console</title>
+    <link rel="stylesheet" th:href="@{/css/govlica.css}"/>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="/" class="nav-brand">GovLICA</a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+    </div>
+</nav>
+
+<main class="main" style="margin-top: 24px;">
+
+    <!-- Header -->
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+        <a th:href="@{'/explore/' + ${detail.uddiSeq}}" class="btn btn-outline btn-sm">&larr; Spec</a>
+        <h2 style="font-size:18px; margin:0;" th:text="${detail.apiName}">API Name</h2>
+    </div>
+
+    <!-- Operation Select (if multiple) -->
+    <div class="console-card" th:if="${detail.operations.size() > 1}" style="padding:12px 20px; margin-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0; border-bottom:none;">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <label style="font-size:13px; font-weight:600; color:var(--text-muted); white-space:nowrap;">Operation</label>
+            <select id="operationSelect" onchange="onOperationChange()" style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+                <option th:each="op, iter : ${detail.operations}"
+                        th:value="${iter.index}"
+                        th:text="${op.operationName}"
+                        th:attr="data-url=${op.endpointUrl ?: detail.endpointUrl},data-method=${op.httpMethod ?: 'GET'}">
+                </option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Operation Bar -->
+    <div class="console-op-bar" th:style="${detail.operations.size() > 1 ? 'border-top-left-radius:0; border-top-right-radius:0;' : ''}">
+        <span class="method-badge"
+              th:classappend="'method-' + ${detail.operations.isEmpty() ? 'get' : detail.operations[0].httpMethod?.toLowerCase() ?: 'get'}"
+              id="methodBadge"
+              th:text="${detail.operations.isEmpty() ? 'GET' : (detail.operations[0].httpMethod ?: 'GET')}">GET</span>
+        <input type="text" id="targetUrl" class="console-url-input"
+               th:value="${detail.operations.isEmpty() ? detail.endpointUrl : (detail.operations[0].endpointUrl ?: detail.endpointUrl)}"
+               placeholder="https://apis.data.go.kr/..."/>
+        <button class="btn btn-success" onclick="executeApi()" id="executeBtn">Execute</button>
+    </div>
+
+    <!-- Parameters Form -->
+    <div class="console-card">
+        <h3 class="console-section-title">Parameters</h3>
+
+        <!-- Service Key -->
+        <div class="console-param-row">
+            <div class="console-param-info">
+                <span class="console-param-name">serviceKey</span>
+                <span class="required-badge">required</span>
+                <span class="console-param-type">string</span>
+            </div>
+            <div class="console-param-desc">data.go.kr에서 발급받은 인증키</div>
+            <div id="savedKeySelector" style="display:none; margin-bottom:8px;">
+                <select id="savedKeySelect" onchange="onSavedKeySelect()" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px;">
+                    <option value="">-- Saved Keys --</option>
+                </select>
+            </div>
+            <div class="console-param-input">
+                <input type="text" id="serviceKey" placeholder="Enter your service key"
+                       onfocus="loadSavedKey()" onchange="saveKey()"/>
+                <label class="console-save-key">
+                    <input type="checkbox" id="saveKeyCheck" onchange="toggleSaveKey()"/>
+                    <span>Remember</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Spec Params (per operation) -->
+        <th:block th:if="${!detail.operations.isEmpty()}"
+                  th:each="op, opIter : ${detail.operations}">
+            <div th:class="'op-params op-params-' + ${opIter.index}" th:style="${opIter.index > 0 ? 'display:none' : ''}">
+                <th:block th:each="p : ${op.requestParams}">
+                    <div th:if="${p.paramName != 'serviceKey'}" class="console-param-row spec-param">
+                        <div class="console-param-info">
+                            <span class="console-param-name" th:text="${p.paramName}">param</span>
+                            <span th:if="${p.required}" class="required-badge">required</span>
+                            <span th:unless="${p.required}" class="optional-badge">optional</span>
+                            <span class="console-param-type" th:text="${p.paramType ?: 'string'}">string</span>
+                        </div>
+                        <div class="console-param-desc" th:if="${p.description}" th:text="${p.description}">Description</div>
+                        <div class="console-param-input">
+                            <input type="text"
+                                   th:attr="data-name=${p.paramName}"
+                                   th:value="${p.defaultValue}"
+                                   th:placeholder="${p.defaultValue != null ? 'default: ' + p.defaultValue : p.paramName}"/>
+                        </div>
+                    </div>
+                </th:block>
+            </div>
+        </th:block>
+
+        <!-- Custom params -->
+        <div id="customParams"></div>
+
+        <button class="btn btn-outline btn-sm" onclick="addCustomRow()" style="margin-top:12px;">+ Add Parameter</button>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p style="margin-top:12px;">Calling API...</p>
+    </div>
+
+    <!-- Response -->
+    <div class="console-card" id="responsePanel" style="display:none; padding:0;">
+        <div class="response-header">
+            <span style="font-weight:600;">Response</span>
+            <span class="status-badge" id="statusBadge">200 OK</span>
+            <span id="elapsed" style="color:var(--text-muted); font-size:13px;"></span>
+            <div style="margin-left:auto; display:flex; gap:6px;">
+                <button class="btn btn-outline btn-sm" onclick="copyResponse()">Copy</button>
+                <button class="btn btn-outline btn-sm" onclick="copyCurl()">cURL</button>
+            </div>
+        </div>
+        <div class="response-body-wrapper">
+            <pre class="response-body" id="responseBody"></pre>
+        </div>
+        <div class="curl-box" id="curlBox" style="display:none;"></div>
+    </div>
+
+</main>
+
+<script th:src="@{/js/auth.js}"></script>
+<script>
+const UDDI_SEQ = '[[${detail.uddiSeq}]]';
+
+// ===== Operation Switch =====
+function onOperationChange() {
+    const sel = document.getElementById('operationSelect');
+    const idx = sel.value;
+    const opt = sel.options[sel.selectedIndex];
+    document.getElementById('targetUrl').value = opt.dataset.url || '';
+    // Update method badge
+    const method = (opt.dataset.method || 'GET').toUpperCase();
+    const badge = document.getElementById('methodBadge');
+    badge.textContent = method;
+    badge.className = 'method-badge method-' + method.toLowerCase();
+    // Toggle param groups
+    document.querySelectorAll('.op-params').forEach(el => el.style.display = 'none');
+    const group = document.querySelector('.op-params-' + idx);
+    if (group) group.style.display = '';
+}
+
+// ===== Custom Params =====
+function addCustomRow() {
+    const container = document.getElementById('customParams');
+    const row = document.createElement('div');
+    row.className = 'console-param-row custom-param-row';
+    row.innerHTML =
+        '<div class="console-param-info">' +
+        '  <input type="text" class="param-key" placeholder="parameter name" style="font-family:SFMono-Regular,Consolas,monospace; font-size:13px; font-weight:600; border:1px dashed var(--border); border-radius:6px; padding:4px 8px; width:140px;"/>' +
+        '</div>' +
+        '<div class="console-param-input" style="display:flex; gap:8px;">' +
+        '  <input type="text" class="param-val" placeholder="value"/>' +
+        '  <button class="btn btn-outline btn-sm" onclick="this.closest(\'.custom-param-row\').remove()" style="flex-shrink:0;">X</button>' +
+        '</div>';
+    container.appendChild(row);
+}
+
+// ===== Service Key Storage =====
+function loadSavedKey() {
+    const saved = localStorage.getItem('govlica_service_key');
+    const input = document.getElementById('serviceKey');
+    const check = document.getElementById('saveKeyCheck');
+    if (saved && !input.value) {
+        input.value = saved;
+        check.checked = true;
+    }
+}
+function saveKey() {
+    if (document.getElementById('saveKeyCheck').checked) {
+        localStorage.setItem('govlica_service_key', document.getElementById('serviceKey').value);
+    }
+}
+function toggleSaveKey() {
+    if (document.getElementById('saveKeyCheck').checked) {
+        localStorage.setItem('govlica_service_key', document.getElementById('serviceKey').value);
+    } else {
+        localStorage.removeItem('govlica_service_key');
+    }
+}
+// Auto-load on page init
+(function() {
+    const saved = localStorage.getItem('govlica_service_key');
+    if (saved) {
+        document.getElementById('serviceKey').value = saved;
+        document.getElementById('saveKeyCheck').checked = true;
+    }
+})();
+
+// ===== Collect Params =====
+function collectParams() {
+    const params = {};
+    document.querySelectorAll('.op-params').forEach(group => {
+        if (group.style.display === 'none') return;
+        group.querySelectorAll('.spec-param input[data-name]').forEach(input => {
+            const name = input.dataset.name;
+            const val = input.value.trim();
+            if (name && val) params[name] = val;
+        });
+    });
+    document.querySelectorAll('.custom-param-row').forEach(row => {
+        const key = row.querySelector('.param-key').value.trim();
+        const val = row.querySelector('.param-val').value.trim();
+        if (key) params[key] = val;
+    });
+    return params;
+}
+
+// ===== Execute API =====
+function executeApi() {
+    const targetUrl = document.getElementById('targetUrl').value.trim();
+    const serviceKey = document.getElementById('serviceKey').value.trim();
+    if (!targetUrl) { alert('Enter target URL'); return; }
+    if (!serviceKey) { alert('Enter your service key'); return; }
+
+    const params = collectParams();
+    const btn = document.getElementById('executeBtn');
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    document.getElementById('loading').classList.add('active');
+    document.getElementById('responsePanel').style.display = 'none';
+
+    const fetchFn = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.fetch.bind(Auth) : fetch;
+    fetchFn('/api/proxy/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUrl, serviceKey, params, uddiSeq: UDDI_SEQ })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = 'Execute';
+        document.getElementById('loading').classList.remove('active');
+        document.getElementById('responsePanel').style.display = 'block';
+
+        const badge = document.getElementById('statusBadge');
+        badge.textContent = data.status === 200 ? '200 OK' : data.status + ' Error';
+        badge.className = 'status-badge ' + (data.status === 200 ? 'status-200' : 'status-error');
+        document.getElementById('elapsed').textContent = data.elapsedMs + 'ms';
+
+        let body = data.body || '';
+        try { body = JSON.stringify(JSON.parse(body), null, 2); } catch(e) {}
+        document.getElementById('responseBody').textContent = body;
+
+        const curlBox = document.getElementById('curlBox');
+        curlBox.textContent = data.curl || '';
+        curlBox.style.display = 'none';
+
+        // Scroll to response
+        document.getElementById('responsePanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = 'Execute';
+        document.getElementById('loading').classList.remove('active');
+        alert('Request failed: ' + err.message);
+    });
+}
+
+// ===== Copy =====
+function copyCurl() {
+    const curlBox = document.getElementById('curlBox');
+    if (curlBox.style.display === 'none') {
+        curlBox.style.display = 'block';
+    }
+    const text = curlBox.textContent;
+    if (text) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('cURL copied!');
+        });
+    }
+}
+
+function copyResponse() {
+    const body = document.getElementById('responseBody').textContent;
+    navigator.clipboard.writeText(body).then(() => {
+        showToast('Response copied!');
+    });
+}
+
+function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 2000);
+}
+
+// ===== Saved Keys (from account) =====
+function loadSavedKeys() {
+    if (typeof Auth === 'undefined' || !Auth.isLoggedIn()) return;
+    Auth.fetch('/api/user/keys')
+        .then(r => r.json())
+        .then(keys => {
+            if (keys.length === 0) return;
+            const selector = document.getElementById('savedKeySelector');
+            const select = document.getElementById('savedKeySelect');
+            select.innerHTML = '<option value="">-- Saved Keys --</option>';
+            keys.forEach(k => {
+                const opt = document.createElement('option');
+                opt.value = k.id;
+                opt.textContent = k.keyName + ' (' + k.maskedKey + ')';
+                select.appendChild(opt);
+            });
+            selector.style.display = 'block';
+        })
+        .catch(() => {});
+}
+
+function onSavedKeySelect() {
+    const id = document.getElementById('savedKeySelect').value;
+    if (!id) return;
+    Auth.fetch('/api/user/keys/' + id + '/decrypt')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('serviceKey').value = data.serviceKey;
+        });
+}
+
+document.addEventListener('DOMContentLoaded', loadSavedKeys);
+</script>
+
+</body>
+</html>

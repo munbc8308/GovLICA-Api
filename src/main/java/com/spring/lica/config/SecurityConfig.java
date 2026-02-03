@@ -38,6 +38,11 @@ public class SecurityConfig {
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers("/h2-console/**").permitAll()
 				.requestMatchers("/api/auth/**").permitAll()
+				.requestMatchers("/api/catalog/**").permitAll()
+				.requestMatchers("/api/proxy/**").permitAll()
+				.requestMatchers("/", "/explore/**", "/console/**", "/signup").permitAll()
+				.requestMatchers("/user/login", "/mypage").permitAll()
+				.requestMatchers("/css/**", "/js/**", "/images/**").permitAll()
 				.anyRequest().authenticated()
 			)
 			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

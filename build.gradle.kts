@@ -102,6 +102,15 @@ dependencies {
 	// RabbitMQ
 	implementation("org.springframework.boot:spring-boot-starter-amqp")
 
+	// WebClient (for data.go.kr API calls)
+	implementation("org.springframework.boot:spring-boot-starter-webflux")
+
+	// Jackson XML (for XML response parsing)
+	implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml")
+
+	// Jsoup (for data.go.kr HTML parsing)
+	implementation("org.jsoup:jsoup:1.18.3")
+
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.security:spring-security-test")
 	testImplementation("org.springframework.graphql:spring-graphql-test")

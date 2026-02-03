@@ -1,5 +1,6 @@
 package com.spring.lica.admin;
 
+import com.spring.lica.domain.catalog.service.CatalogSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,8 @@ import java.util.Map;
 public class AdminController {
 
 	private final SettingsService settingsService;
+	private final AdminStatsService adminStatsService;
+	private final CatalogSyncService catalogSyncService;
 
 	@Autowired(required = false)
 	private ContextRefresher contextRefresher;
@@ -27,6 +30,26 @@ public class AdminController {
 	@GetMapping("/login")
 	public String login() {
 		return "login";
+	}
+
+	@GetMapping("/admin/dashboard")
+	public String dashboard(Model model) {
+		model.addAttribute("stats", adminStatsService.getStats());
+		return "admin-dashboard";
+	}
+
+	@PostMapping("/admin/sync")
+	public String sync(RedirectAttributes ra) {
+		try {
+			var result = catalogSyncService.syncFromPortal();
+			ra.addFlashAttribute("message",
+					String.format("Sync 완료! 신규: %d, 업데이트: %d (포털 총: %d)",
+							result.totalNew(), result.totalUpdated(), result.portalTotalCount()));
+		} catch (Exception e) {
+			log.error("Admin sync failed", e);
+			ra.addFlashAttribute("error", "Sync 실패: " + e.getMessage());
+		}
+		return "redirect:/admin/dashboard";
 	}
 
 	@GetMapping("/admin/settings")

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>My Page - GovLICA</title>
+    <link rel="stylesheet" th:href="@{/css/govlica.css}"/>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="/" class="nav-brand">GovLICA</a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+    </div>
+</nav>
+
+<main class="main" style="margin-top: 24px;">
+
+    <!-- User Info -->
+    <div class="mypage-header" id="userInfo" style="display:none;">
+        <h2 id="userNickname">User</h2>
+        <p id="userEmail" style="color:var(--text-muted); font-size:14px;"></p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mypage-tabs">
+        <button class="mypage-tab active" onclick="switchTab('keys')">Service Keys</button>
+        <button class="mypage-tab" onclick="switchTab('favorites')">Favorites</button>
+        <button class="mypage-tab" onclick="switchTab('history')">History</button>
+    </div>
+
+    <!-- Service Keys Tab -->
+    <div class="mypage-panel" id="panel-keys">
+        <div class="mypage-panel-header">
+            <h3>Service Keys</h3>
+            <button class="btn btn-primary btn-sm" onclick="showAddKeyForm()">+ Add Key</button>
+        </div>
+
+        <div id="addKeyForm" style="display:none; margin-bottom:16px;" class="mypage-add-form">
+            <input type="text" id="newKeyName" placeholder="Key name (e.g. test-key)" style="flex:1;"/>
+            <input type="text" id="newKeyValue" placeholder="Service key value" style="flex:2;"/>
+            <button class="btn btn-success btn-sm" onclick="addKey()">Save</button>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('addKeyForm').style.display='none'">Cancel</button>
+        </div>
+
+        <div id="keysList"></div>
+    </div>
+
+    <!-- Favorites Tab -->
+    <div class="mypage-panel" id="panel-favorites" style="display:none;">
+        <div class="mypage-panel-header">
+            <h3>Favorites</h3>
+        </div>
+        <div id="favoritesList"></div>
+    </div>
+
+    <!-- History Tab -->
+    <div class="mypage-panel" id="panel-history" style="display:none;">
+        <div class="mypage-panel-header">
+            <h3>Test History</h3>
+        </div>
+        <div id="historyList"></div>
+        <div id="historyPagination" class="mypage-pagination"></div>
+    </div>
+
+</main>
+
+<script th:src="@{/js/auth.js}"></script>
+<script>
+// ===== Auth Check =====
+if (!Auth.isLoggedIn()) {
+    location.href = '/user/login?redirect=/mypage';
+}
+
+const authFetch = (url, opts) => Auth.fetch(url, opts);
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', () => {
+    loadUserInfo();
+    loadKeys();
+});
+
+function loadUserInfo() {
+    authFetch('/api/auth/me')
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(user => {
+            document.getElementById('userNickname').textContent = user.nickname;
+            document.getElementById('userEmail').textContent = user.email;
+            document.getElementById('userInfo').style.display = 'block';
+        })
+        .catch(() => {
+            Auth.clear();
+            location.href = '/user/login?redirect=/mypage';
+        });
+}
+
+// ===== Tabs =====
+function switchTab(tab) {
+    document.querySelectorAll('.mypage-tab').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.mypage-panel').forEach(el => el.style.display = 'none');
+    event.target.classList.add('active');
+    document.getElementById('panel-' + tab).style.display = 'block';
+
+    if (tab === 'keys') loadKeys();
+    else if (tab === 'favorites') loadFavorites();
+    else if (tab === 'history') loadHistory(0);
+}
+
+// ===== Service Keys =====
+function showAddKeyForm() {
+    document.getElementById('addKeyForm').style.display = 'flex';
+    document.getElementById('newKeyName').focus();
+}
+
+function addKey() {
+    const keyName = document.getElementById('newKeyName').value.trim();
+    const serviceKey = document.getElementById('newKeyValue').value.trim();
+    if (!keyName || !serviceKey) { alert('Key name and value are required'); return; }
+
+    authFetch('/api/user/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyName, serviceKey })
+    })
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(() => {
+        document.getElementById('addKeyForm').style.display = 'none';
+        document.getElementById('newKeyName').value = '';
+        document.getElementById('newKeyValue').value = '';
+        loadKeys();
+    })
+    .catch(err => alert('Failed to add key'));
+}
+
+function loadKeys() {
+    authFetch('/api/user/keys')
+        .then(r => r.json())
+        .then(keys => {
+            const container = document.getElementById('keysList');
+            if (keys.length === 0) {
+                container.innerHTML = '<div class="mypage-empty">No service keys saved yet.</div>';
+                return;
+            }
+            container.innerHTML = keys.map(k => `
+                <div class="mypage-item">
+                    <div style="flex:1;">
+                        <div style="font-weight:600; font-size:14px;">${escHtml(k.keyName)}</div>
+                        <div style="font-size:13px; color:var(--text-muted); font-family:monospace;">${escHtml(k.maskedKey)}</div>
+                        <div style="font-size:12px; color:var(--text-light);">${k.createdAt ? new Date(k.createdAt).toLocaleDateString() : ''}</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn btn-outline btn-sm" onclick="copyKey(${k.id})">Copy</button>
+                        <button class="btn btn-outline btn-sm" onclick="deleteKey(${k.id})" style="color:var(--error);">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        });
+}
+
+function copyKey(id) {
+    authFetch('/api/user/keys/' + id + '/decrypt')
+        .then(r => r.json())
+        .then(data => {
+            navigator.clipboard.writeText(data.serviceKey).then(() => alert('Key copied!'));
+        });
+}
+
+function deleteKey(id) {
+    if (!confirm('Delete this key?')) return;
+    authFetch('/api/user/keys/' + id, { method: 'DELETE' })
+        .then(() => loadKeys());
+}
+
+// ===== Favorites =====
+function loadFavorites() {
+    authFetch('/api/user/favorites')
+        .then(r => r.json())
+        .then(favs => {
+            const container = document.getElementById('favoritesList');
+            if (favs.length === 0) {
+                container.innerHTML = '<div class="mypage-empty">No favorites yet. Browse APIs and add some!</div>';
+                return;
+            }
+            container.innerHTML = favs.map(f => `
+                <a href="/explore/${escHtml(f.uddiSeq)}" class="mypage-item mypage-item-link">
+                    <div style="flex:1;">
+                        <div style="font-weight:600; font-size:14px;">${escHtml(f.apiName)}</div>
+                        <div style="font-size:12px; color:var(--text-light);">${f.favoritedAt ? new Date(f.favoritedAt).toLocaleDateString() : ''}</div>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="event.preventDefault(); removeFavorite(${f.catalogId})" style="color:var(--error);">Remove</button>
+                </a>
+            `).join('');
+        });
+}
+
+function removeFavorite(catalogId) {
+    authFetch('/api/user/favorites/' + catalogId, { method: 'DELETE' })
+        .then(() => loadFavorites());
+}
+
+// ===== History =====
+let historyPage = 0;
+function loadHistory(page) {
+    historyPage = page;
+    authFetch('/api/user/history?page=' + page + '&size=15')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('historyList');
+            if (data.content.length === 0) {
+                container.innerHTML = '<div class="mypage-empty">No test history yet.</div>';
+                document.getElementById('historyPagination').innerHTML = '';
+                return;
+            }
+            container.innerHTML = data.content.map(h => `
+                <div class="mypage-item">
+                    <div style="flex:1;">
+                        <div style="font-size:14px; font-family:monospace; word-break:break-all;">${escHtml(h.requestUrl)}</div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
+                            <span class="status-badge ${h.responseStatus === 200 ? 'status-200' : 'status-error'}">${h.responseStatus}</span>
+                            ${h.catalogName ? '<span style="margin-left:8px;">' + escHtml(h.catalogName) + '</span>' : ''}
+                            <span style="margin-left:8px; color:var(--text-light);">${h.executedAt ? new Date(h.executedAt).toLocaleString() : ''}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Pagination
+            const pag = document.getElementById('historyPagination');
+            if (data.totalPages > 1) {
+                let html = '';
+                for (let i = 0; i < data.totalPages && i < 10; i++) {
+                    html += `<button class="mypage-page-btn ${i === page ? 'active' : ''}" onclick="loadHistory(${i})">${i + 1}</button>`;
+                }
+                pag.innerHTML = html;
+            } else {
+                pag.innerHTML = '';
+            }
+        });
+}
+
+// ===== Util =====
+function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Login - GovLICA</title>
+    <link rel="stylesheet" th:href="@{/css/govlica.css}"/>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="/" class="nav-brand">GovLICA</a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+    </div>
+</nav>
+
+<main class="auth-container">
+    <div class="auth-card">
+        <h2>Login</h2>
+        <p class="auth-subtitle">GovLICA 계정으로 로그인</p>
+
+        <div class="auth-alert auth-alert-error" id="errorMsg" style="display:none;"></div>
+
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+            <div class="auth-form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" required placeholder="name@example.com" autofocus/>
+            </div>
+            <div class="auth-form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required placeholder="Password"/>
+            </div>
+            <button type="submit" class="auth-btn" id="submitBtn">Login</button>
+        </form>
+
+        <div class="auth-footer">
+            <span>계정이 없으신가요?</span>
+            <a href="/signup">Sign Up</a>
+        </div>
+    </div>
+</main>
+
+<script th:src="@{/js/auth.js}"></script>
+<script>
+function handleLogin(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    errorMsg.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+
+    fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+        })
+    })
+    .then(r => {
+        if (!r.ok) return r.json().then(data => { throw new Error(data.message || 'Login failed'); });
+        return r.json();
+    })
+    .then(data => {
+        Auth.setAuth(data.token, { email: data.email, nickname: data.nickname });
+        const redirect = new URLSearchParams(location.search).get('redirect') || '/';
+        location.href = redirect;
+    })
+    .catch(err => {
+        errorMsg.textContent = err.message;
+        errorMsg.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Login';
+    });
+
+    return false;
+}
+
+// If already logged in, redirect
+if (Auth.isLoggedIn()) {
+    location.href = '/';
+}
+</script>
+
+</body>
+</html>

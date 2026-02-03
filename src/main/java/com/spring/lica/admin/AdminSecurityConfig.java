@@ -20,9 +20,9 @@ public class AdminSecurityConfig {
 	@Bean
 	public SecurityFilterChain adminFilterChain(HttpSecurity http, AdminProperties props) throws Exception {
 		http
-			.securityMatcher("/admin/**", "/login", "/css/**")
+			.securityMatcher("/admin/**", "/login", "/css/admin.css")
 			.authorizeHttpRequests(auth -> auth
-				.requestMatchers("/login", "/css/**").permitAll()
+				.requestMatchers("/login", "/css/admin.css").permitAll()
 				.requestMatchers("/admin/**").hasRole("ADMIN")
 			)
 			.formLogin(form -> form
